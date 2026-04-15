@@ -1,0 +1,61 @@
+name: CI - Lint and Test Claude API Templates
+
+on:
+  push:
+      branches: [main]
+        pull_request:
+            branches: [main]
+
+            permissions:
+              contents: read
+
+              jobs:
+                lint:
+                    name: Lint with Ruff
+                        runs-on: ubuntu-latest
+                            steps:
+                                  - uses: actions/checkout@v4
+                                        - uses: actions/setup-python@v5
+                                                with:
+                                                          python-version: "3.12"
+                                                                - run: pip install ruff
+                                                                      - run: ruff check . --output-format=github
+                                                                            - run: ruff format --check .
+
+                                                                              typecheck:
+                                                                                  name: Type check with mypy
+                                                                                      runs-on: ubuntu-latest
+                                                                                          steps:
+                                                                                                - uses: actions/checkout@v4
+                                                                                                      - uses: actions/setup-python@v5
+                                                                                                              with:
+                                                                                                                        python-version: "3.12"
+                                                                                                                              - run: pip install mypy anthropic pydantic httpx
+                                                                                                                                    - run: mypy --ignore-missing-imports *.py
+                                                                                                                                    
+                                                                                                                                      syntax-check:
+                                                                                                                                          name: Verify all scripts parse
+                                                                                                                                              runs-on: ubuntu-latest
+                                                                                                                                                  steps:
+                                                                                                                                                        - uses: actions/checkout@v4
+                                                                                                                                                              - uses: actions/setup-python@v5
+                                                                                                                                                                      with:
+                                                                                                                                                                                python-version: "3.12"
+                                                                                                                                                                                      - name: Check Python AST
+                                                                                                                                                                                              run: |
+                                                                                                                                                                                                        for f in *.py; do
+                                                                                                                                                                                                                    echo "Checking $f..."
+                                                                                                                                                                                                                                python -c "import ast; ast.parse(open('$f').read())"
+                                                                                                                                                                                                                                          done
+                                                                                                                                                                                                                                                    echo "All files parse OK"
+                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                      security:
+                                                                                                                                                                                                                                                          name: Security scan with Bandit
+                                                                                                                                                                                                                                                              runs-on: ubuntu-latest
+                                                                                                                                                                                                                                                                  steps:
+                                                                                                                                                                                                                                                                        - uses: actions/checkout@v4
+                                                                                                                                                                                                                                                                              - uses: actions/setup-python@v5
+                                                                                                                                                                                                                                                                                      with:
+                                                                                                                                                                                                                                                                                                python-version: "3.12"
+                                                                                                                                                                                                                                                                                                      - run: pip install bandit
+                                                                                                                                                                                                                                                                                                            - run: bandit -r . -ll --skip B101
