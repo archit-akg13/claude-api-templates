@@ -1,0 +1,90 @@
+"""Prompt cache helper — utilities for Claude prompt caching.
+
+Helpers to build correctly formatted messages with cache_control markers,
+estimate cache savings, and apply breakpoints to reduce latency and cost
+on repeated requests with the same large context.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, Iterable, List, Optional
+
+EPHEMERAL: Dict[str, str] = {"type": "ephemeral"}
+MAX_CACHE_BREAKPOINTS = 4
+
+
+def cached_system_prompt(text: str, cache: bool = True) -> List[Dict[str, Any]]:
+      """Return a system prompt as content blocks with optional caching."""
+      block: Dict[str, Any] = {"type": "text", "text": text}
+      if cache:
+                block["cache_control"] = EPHEMERAL
+            return [block]
+
+
+def cached_document_block(
+      text: str,
+      title: Optional[str] = None,
+      cache: bool = True,
+) -> Dict[str, Any]:
+      """Build a text block for a long document, optionally cache-marked."""
+    body = f'<document title="{title}">\n{text}\n</document>' if title else text
+    block: Dict[str, Any] = {"type": "text", "text": body}
+    if cache:
+              block["cache_control"] = EPHEMERAL
+          return block
+
+
+def with_cache_breakpoints(
+      blocks: Iterable[Dict[str, Any]],
+      breakpoint_indices: Iterable[int],
+) -> List[Dict[str, Any]]:
+      """Apply cache_control ephemeral at specific block indices."""
+    blocks_list = [dict(b) for b in blocks]
+    indices = sorted(set(breakpoint_indices))
+    if len(indices) > MAX_CACHE_BREAKPOINTS:
+              raise ValueError(
+                            f"at most {MAX_CACHE_BREAKPOINTS} cache breakpoints allowed, "
+                            f"got {len(indices)}"
+              )
+          for i in indices:
+                    if not 0 <= i < len(blocks_list):
+                                  raise ValueError(f"breakpoint index {i} out of range")
+                              blocks_list[i]["cache_control"] = EPHEMERAL
+    return blocks_list
+
+
+def estimate_cache_savings(
+      cached_input_tokens: int,
+      uncached_input_tokens: int,
+      input_price_per_mtok: float = 3.0,
+      cached_read_price_per_mtok: float = 0.30,
+      cache_write_price_per_mtok: float = 3.75,
+) -> Dict[str, float]:
+      """Estimate cost per request with vs without cache (USD)."""
+    write_cost = (cached_input_tokens * cache_write_price_per_mtok) / 1_000_000
+    uncached_cost = (uncached_input_tokens * input_price_per_mtok) / 1_000_000
+    first_request = write_cost + uncached_cost
+
+    read_cost = (cached_input_tokens * cached_read_price_per_mtok) / 1_000_000
+    subsequent_request = read_cost + uncached_cost
+
+    without = (
+              (cached_input_tokens + uncached_input_tokens) * input_price_per_mtok
+    ) / 1_000_000
+
+    return {
+              "first_request_with_cache": round(first_request, 6),
+              "subsequent_request_with_cache": round(subsequent_request, 6),
+              "without_cache": round(without, 6),
+              "savings_per_subsequent": round(without - subsequent_request, 6),
+    }
+
+
+if __name__ == "__main__":
+      stats = estimate_cache_savings(
+                cached_input_tokens=100_000,
+                uncached_input_tokens=500,
+      )
+    print("Cost estimate (USD):")
+    for key, value in stats.items():
+              print(f"  {key}: ${value}")
