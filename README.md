@@ -60,3 +60,27 @@ Not sure where to start? Use this rough mapping from the problem you have to the
 MIT — use these in your own projects, commercial or otherwise.
 # claude-api-templates
 Ready-to-use Claude API integration scripts — structured outputs, streaming, tool use, batch processing, and embeddings.
+## Choosing the right template
+
+Quick guide for picking the right starting point:
+
+- **One-off, structured data extraction (form, invoice, JSON record)** → start with `structured_output.py`. Pydantic schema gives you validation for free and the prompt is short.
+- - **Anything user-facing where waiting feels slow** → `streaming_chat.py`. The backpressure handling matters more than people expect once you put it under real load.
+  - - **Need Claude to look things up or call your code mid-conversation** → `tool_use_agent.py`. Read the tool-result loop carefully — the SDK does not retry tool errors for you.
+    - - **Bulk processing where latency doesn't matter** → `batch_processor.py`. Use this any time the dataset is over ~500 prompts. The cost savings vs. real-time calls are large enough that batching is worth the operational complexity.
+      - - **Long-running conversations with state** → `conversation_memory.py`. Watch the token budget; the helper trims oldest turns automatically but you should log when it does.
+       
+        - ## Environment
+       
+        - These templates expect a single environment variable:
+       
+        - ```bash
+          export ANTHROPIC_API_KEY=sk-ant-...
+          ```
+
+          Each script reads it with `os.environ["ANTHROPIC_API_KEY"]` and fails loudly if it is missing — no silent fallback to an empty string. If you prefer a `.env` file, install `python-dotenv` and add `load_dotenv()` at the top of the script; the rest works unchanged.
+
+          ## Versioning
+
+          Templates are pinned against the `anthropic` Python SDK version listed in each script's docstring. When the SDK has a breaking change, the affected templates get a follow-up commit with a one-line note in the docstring describing the migration. Older versions stay reachable via git history rather than living as duplicate files.
+          
